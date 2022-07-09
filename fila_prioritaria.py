@@ -2,7 +2,11 @@ from typing import Dict, List, Union
 
 from fila_base import FilaBase
 from costantes import CODIGO_PRIORITARIO
+from estatistica_detalhada import EstatisticaDetalhada
+from estatistica_resumida import EstatisticaResumida
 
+
+Estatisticas = Union[EstatisticaResumida, EstatisticaDetalhada]
 
 class FilaPrioritaria(FilaBase):
     def gera_senha_atual(self) -> None:
@@ -21,9 +25,6 @@ class FilaPrioritaria(FilaBase):
 
         return display
         
-    def estatistica(self, dia: str, agencia: str, retorna_statistica) -> dict:
+    def estatistica(self, retorna_statistica: Estatisticas) -> dict:
         
-        estatistica = retorna_statistica(dia, agencia)
-
-            
-        return estatistica.roda_estatistica(self.clientes_atendidos)
+        return retorna_statistica.roda_estatistica(self.clientes_atendidos)
