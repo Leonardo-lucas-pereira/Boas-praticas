@@ -1,0 +1,110 @@
+import requests
+import time
+from datetime import datetime
+
+
+def log_time(string):
+    time_log = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    print(f"{time_log} - {string}")
+
+def test_connection(session, dag_id):
+    base_url = "http://localhost:8080/api/v1"
+    endpoint = f"/dags/{dag_id}"
+
+    try:
+        response = session.get(f"{base_url}{endpoint}")
+
+        if response.ok:
+            print()
+            log_time("Verificando status da DAG")
+            response = response.json()
+            print()
+            print('*'*30)
+            print(f"DAG ID == {response['dag_id']}")
+            print(f"is_active == {response['is_active']}")
+            print(f"is_paused == {response['is_paused']}")
+            print('*'*30)
+            print()
+            return 0
+        else:
+            log_time("Erro na requisição")
+            print(response.text)
+            return 1
+
+    except Exception as err:
+        log_time("Falha ao efetuar a requisição para o endpont: {base_url}{endpoint}")
+        raise err
+
+def trigger_dag(session, job_id, modelo):
+    log_time(f"Iniciando DAG: {job_id}-{modelo}")
+
+    tempo = round(time.time())
+
+    data = {
+    "dag_run_id": f"{job_id}_{modelo}_{tempo}"
+    }
+    r = session.post('http://localhost:8080/api/v1/dags/my_dag/dagRuns', json=data)
+    response = r.json()
+
+    if r.ok:
+        log_time(f"DAG Run ID {response['dag_run_id']}")
+        return response['dag_run_id']
+
+    else:
+        log_time("Problema ao iniciar a DAG")
+        print(response.text)
+        # lancar erro no processo spark
+        return 1
+
+def dag_monitor(session,dag_run_id):
+    try:
+        response = session.get(f'http://localhost:8080/api/v1/dags/my_dag/dagRuns/{dag_run_id}')
+        if response.ok:
+            response = response.json()
+            print()
+            log_time(f"Status da DAG: {response['state']}")
+
+            if response['state'] == "success":
+                log_time(f"DAG concluida com sucesso.")
+                return 1
+
+            if response['state'] == "failed":
+                log_time(f"DAG apresentou erro.")
+                # lançar erro no processo spark
+                return 1
+        else:
+            log_time("Erro na requisição")
+            print(response.text)
+            return 1
+    except Exception as err:
+        log_time("Falha ao efetuar a requisição para o endpont: {base_url}{endpoint}")
+        raise err
+
+def start_dag(session, job_id, modelo):
+    if test_connection(session,"my_dag") == 0:
+        dag_run_id = trigger_dag(session, job_id, modelo)
+        if dag_run_id != 1:
+            while True:
+                result = dag_monitor(session, dag_run_id)
+                if result == 1:
+                    break
+                time.sleep(60)
+
+
+if __name__ =="__main__":
+    print('#'*30)
+    log_time("Iniciando execução do programa")
+    print('#'*30)
+
+# credenciais - inserir no jceks
+user = "admin"
+password = "SXFB3CGskzav7w78"
+
+# Obter sessão
+session = requests.Session()
+session.auth = (user, password)
+
+job_id = 'DIS_J001'
+modelo = 'HDT1'
+
+start_dag(session,job_id,modelo)
